@@ -1,0 +1,38 @@
+#!/bin/bash
+
+declare -x PKGBUNDLE="$1"       # Full path to the install package.
+declare -x DSTROOT="$3"         # Installation Volume of mount point.
+
+declare -x awk="/usr/bin/awk"
+declare -x cp="/bin/cp"
+declare -x chmod="/bin/chmod"
+declare -x chown="/usr/sbin/chown"
+
+declare -x FIREFOX="$DSTROOT/Applications/Firefox.app"
+declare -x GEPREFS="${FIREFOX:?}/Contents/MacOS/greprefs"
+source "$PKGBUNDLE/Contents/Resources/postflight.conf"
+declare -x CHECK_PREF="$(
+$awk -F'[",]' '/general.config.filename/{print $(NF-1)}' "${GEPREFS:?}/all.js")"
+
+if [ "${CHECK_PREF}" != "${FF_CONFIGFILE:?}" ] ; then
+# Check if preferences has already been set
+echo '// Company additions' >> "${GEPREFS:?}/all.js"
+echo 'pref("general.config.obscure_value", 0);' >> "${GEPREFS:?}/all.js"
+echo "pref(\"general.config.filename\", \"${FF_CONFIGFILE:?}\");" >> "${GEPREFS:?}/all.js"
+# Append the custom configuration to end of file
+else
+	echo "The file $FF_CONFIGFILE is already configured."
+fi
+if [ -d "$FIREFOX/Contents/MacOS/" ] ; then
+"$cp" -f "${PKGBUNDLE:?}/Contents/Resources/${FF_CONFIGFILE:?}" "${FIREFOX:?}/Contents/MacOS/"
+else
+	echo "Firefox is missing or $FIREFOX/Contents/MacOS/"
+fi
+# No check here for default home page as we are not appending , just overwriting
+echo "browser.startup.homepage=$DEFAULT_HOMEPAGE" > "${FIREFOX:?}/Contents/MacOS/browserconfig.properties"
+echo "browser.startup.homepage_reset=$DEFAULT_HOMEPAGE" >> "${FIREFOX:?}/Contents/MacOS/browserconfig.properties"
+
+$chmod -R 775 "${FIREFOX:?}"
+$chown -R 0:80 "${FIREFOX:?}"
+
+exit 0
